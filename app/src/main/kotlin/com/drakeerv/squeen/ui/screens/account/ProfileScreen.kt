@@ -34,7 +34,6 @@ import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material.icons.filled.Code
-import androidx.compose.material.icons.filled.Download
 import com.drakeerv.squeen.BuildConfig
 import androidx.compose.material.icons.filled.Gavel
 import androidx.compose.material.icons.filled.CardGiftcard
@@ -404,16 +403,19 @@ fun ProfileScreen(
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        "Developed by drakeerv",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        "License: MIT",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                     Spacer(Modifier.height(14.dp))
-                    androidx.compose.material3.Button(
-                        onClick = { openObtainium(context) },
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        Icon(Icons.Filled.Download, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text("Get with Obtainium")
-                    }
-                    Spacer(Modifier.height(8.dp))
                     androidx.compose.material3.OutlinedButton(
                         onClick = { openUrl(context, GITHUB_URL) },
                         modifier = Modifier.fillMaxWidth(),
@@ -500,17 +502,6 @@ private fun ProfileSectionTitle(text: String) {
 }
 
 private const val GITHUB_URL = "https://github.com/drakeerv/squeen"
-private const val OBTAINIUM_DEEP_LINK = "obtainium://add/$GITHUB_URL"
-
-/** Opens the app in Obtainium; falls back to the GitHub releases page. */
-private fun openObtainium(context: android.content.Context) {
-    val intent = android.content.Intent(
-        android.content.Intent.ACTION_VIEW,
-        android.net.Uri.parse(OBTAINIUM_DEEP_LINK),
-    ).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-    runCatching { context.startActivity(intent) }
-        .onFailure { openUrl(context, "$GITHUB_URL/releases") }
-}
 
 private fun openUrl(context: android.content.Context, url: String) {
     runCatching {
