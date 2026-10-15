@@ -38,6 +38,11 @@ Requires JDK 17+ and an Android SDK with platform 37 or 36 (`compileSdk` is set 
 Optional release signing: create `keystore.properties` (git-ignored) with `storeFile`,
 `storePassword`, `keyAlias`, `keyPassword`. Without it, release builds fall back to the debug key.
 
+## License
+
+[MIT](LICENSE). "Speed Queen" and the laundry service are trademarks and services of their
+respective owners; this project is an unofficial client and ships no original app code or assets.
+
 ## Architecture
 
 ```
