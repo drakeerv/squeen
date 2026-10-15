@@ -38,20 +38,6 @@ Requires JDK 17+ and an Android SDK with platform 37 or 36 (`compileSdk` is set 
 Optional release signing: create `keystore.properties` (git-ignored) with `storeFile`,
 `storePassword`, `keyAlias`, `keyPassword`. Without it, release builds fall back to the debug key.
 
-## Releases (different versions)
-
-Use the **Release** GitHub Action (`Actions → Release → Run workflow`) and provide a version name
-and version code. The workflow builds a release APK with those values
-(`-PversionName=… -PversionCode=…`), tags `v<version>` and publishes it as a GitHub Release , 
-which is exactly what Obtainium consumes.
-
-For signed CI builds add these repository secrets: `KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`,
-`KEY_ALIAS`, `KEY_PASSWORD` (the `release-keystore.jks` file, base64-encoded). Without them the
-release is signed with the debug key so it still installs.
-
-The app reports **v1.0.0** to users while spoofing the original client version (`4.2.2`) to the
-laundry API, which still expects it for its minimum-version gate and socket handshake.
-
 ## Architecture
 
 ```
