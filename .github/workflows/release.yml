@@ -56,17 +56,12 @@ jobs:
       - name: Rename APK
         run: |
           mkdir -p release
-          cp app/build/outputs/apk/release/app-release.apk "release/squeens-${{ inputs.version }}.apk"
+          cp app/build/outputs/apk/release/app-release.apk "release/squeen-${{ inputs.version }}.apk"
 
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ inputs.version }}
-          name: squeens v${{ inputs.version }}
-          files: release/squeens-${{ inputs.version }}.apk
+          name: squeen v${{ inputs.version }}
+          files: release/squeen-${{ inputs.version }}.apk
           generate_release_notes: true
-          body: |
-            squeens v${{ inputs.version }} (${{ inputs.version_code }})
-
-            Install with [Obtainium](https://github.com/ImranR98/Obtainium), add
-            `https://github.com/${{ github.repository }}` and updates arrive automatically.
