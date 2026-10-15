@@ -128,6 +128,7 @@ data class MachineUiState(
     val canTopOff: Boolean = false,
     val topOffCents: Int = 0,
     val topOffSeconds: Int = 0,
+    val topOffDisabled: Boolean = false,
     val dryerUnits: Int = 0,
     val dryerMaxUnits: Int = 0,
     val live: Boolean = false,
@@ -143,6 +144,18 @@ data class MachineUiState(
         get() = (statusId ?: machine?.statusId)?.uppercase() in com.drakeerv.squeen.data.model.Machine.BUSY_STATUSES
 
     val isDryerMachine: Boolean get() = machine?.isDryer == true
+
+    /**
+     * Official rule (MachineFragment): the "add more drying time" button only appears for the
+     * user's own running dryer when the live frame reports canTopOff and top-off is not
+     * fully disabled.
+     */
+    val canAddDryingTime: Boolean
+        get() = machine?.isMyMachine == true &&
+            machine.isDryer &&
+            machine.canTopOff &&
+            !topOffDisabled &&
+            remainingSeconds > 0
 
     /** Machines without time selection: the base price from the live status. */
     private val basePriceCents: Int get() = if (priceCents > 0) priceCents else machine?.remainingVend ?: 0
@@ -163,6 +176,14 @@ data class MachineUiState(
 
     val availableCents: Int
         get() = (balance?.amount?.toInt() ?: 0) + if (useRewards) (balance?.promotionalCredit?.toInt() ?: 0) else 0
+
+    /** Extra time units the machine accepts right now (1..39, capped by the 99 minute cycle). */
+    val topOffMaxUnits: Int
+        get() {
+            if (topOffSeconds <= 0) return 1
+            return ((MachineViewModel.MAX_CYCLE_SECONDS - remainingSeconds) / topOffSeconds)
+                .coerceIn(1, MachineViewModel.ABSOLUTE_MAX_UNITS)
+        }
 }
 
 sealed interface MachineDialog {
@@ -171,6 +192,8 @@ sealed interface MachineDialog {
     data object NoConfirmation : MachineDialog
     data class NotEnoughFunds(val balanceName: String) : MachineDialog
     data object NoAmountToCharge : MachineDialog
+    data class ConfirmStart(val amountCents: Int) : MachineDialog
+    data class ConfirmTopOff(val units: Int) : MachineDialog
 }
 
 class MachineViewModel(
@@ -273,6 +296,7 @@ class MachineViewModel(
                     canTopOff = machine?.isDryer == true,
                     topOffCents = machine?.topOffVend ?: 0,
                     topOffSeconds = machine?.topOffTime ?: 0,
+                    topOffDisabled = machine?.topOffFullyDisabled ?: false,
                     dryerMaxUnits = MachineViewModel.maxDryerUnits(
                         baseSeconds = machine?.remainingSeconds ?: 0,
                         topOffSeconds = machine?.topOffTime ?: 0,
@@ -308,6 +332,7 @@ class MachineViewModel(
                                 canTopOff = update.canTopOff,
                                 topOffCents = update.topOffVend,
                                 topOffSeconds = update.topOffTime,
+                                topOffDisabled = update.topOffDisabled,
                                 priceCents = if (update.remainingVend > 0) update.remainingVend else it.priceCents,
                                 priceChecked = it.priceChecked || update.remainingVend > 0,
                             )
@@ -427,6 +452,30 @@ class MachineViewModel(
         }
     }
 
+    /** Validates, then shows the confirmation dialog before any money moves. */
+    fun requestStart(machineId: String) {
+        val state = _state.value
+        val subAccount = state.user?.accounts?.firstOrNull()?.subAccounts?.firstOrNull()
+        val machine = state.machine ?: return
+        val amount = state.effectivePriceCents
+
+        when {
+            subAccount == null -> {
+                _state.update { it.copy(dialog = MachineDialog.Failed("No account balance found for this location.")) }
+                return
+            }
+            amount <= 0 -> {
+                _state.update { it.copy(dialog = MachineDialog.NoAmountToCharge) }
+                return
+            }
+            state.availableCents < amount -> {
+                _state.update { it.copy(dialog = MachineDialog.NotEnoughFunds("balance")) }
+                return
+            }
+        }
+        _state.update { it.copy(dialog = MachineDialog.ConfirmStart(amount)) }
+    }
+
     fun startVend(machineId: String) {
         val state = _state.value
         val subAccount = state.user?.accounts?.firstOrNull()?.subAccounts?.firstOrNull()
@@ -472,10 +521,26 @@ class MachineViewModel(
         }
     }
 
+    /** Opens the add-time picker (official opens a dryer payment screen here). */
+    fun requestTopOff() {
+        if (!_state.value.canAddDryingTime) {
+            _state.update { it.copy(dialog = MachineDialog.Failed("This machine can't take more drying time right now.")) }
+            return
+        }
+        _state.update { it.copy(dialog = MachineDialog.ConfirmTopOff(units = 1)) }
+    }
+
+    fun setTopOffUnits(units: Int) {
+        _state.update { state ->
+            state.copy(dialog = MachineDialog.ConfirmTopOff(units = units.coerceIn(1, state.topOffMaxUnits)))
+        }
+    }
+
     fun topOff(machineId: String) {
         val state = _state.value
         val subAccount = state.user?.accounts?.firstOrNull()?.subAccounts?.firstOrNull() ?: return
-        val amount = if (state.topOffCents > 0) state.topOffCents else state.effectivePriceCents
+        val units = (state.dialog as? MachineDialog.ConfirmTopOff)?.units ?: 1
+        val amount = state.topOffCents * units
         viewModelScope.launch {
             _state.update { it.copy(topOffRunning = true) }
             when (
@@ -607,10 +672,10 @@ fun MachineScreen(
             } else {
                 PriceAndStartCard(
                 state = state,
-                onStart = { viewModel.startVend(machineId) },
-                onTopOff = { viewModel.topOff(machineId) },
-                    onRetryPrice = { viewModel.requestPrice(machineId) },
-                )
+                onStart = { viewModel.requestStart(machineId) },
+                onTopOff = { viewModel.requestTopOff() },
+                onRetryPrice = { viewModel.requestPrice(machineId) },
+            )
             }
 
             if (state.isDryerMachine && !state.isRunning && !state.isIncludedLaundry && state.topOffSeconds > 0) {
@@ -649,11 +714,25 @@ fun MachineScreen(
         }
     }
 
-    MachineDialogs(state = state, onDismiss = { viewModel.dismissDialog() }, onAddCredit = {
-        state.user?.accounts?.firstOrNull()?.let { account ->
-            onAddCredit(account.id, account.subAccounts.firstOrNull()?.geoBoundaryId.orEmpty())
-        }
-    }, onBack = onBack)
+    MachineDialogs(
+        state = state,
+        onDismiss = { viewModel.dismissDialog() },
+        onAddCredit = {
+            state.user?.accounts?.firstOrNull()?.let { account ->
+                onAddCredit(account.id, account.subAccounts.firstOrNull()?.geoBoundaryId.orEmpty())
+            }
+        },
+        onConfirmStart = {
+            viewModel.dismissDialog()
+            viewModel.startVend(machineId)
+        },
+        onTopOffUnits = { viewModel.setTopOffUnits(it) },
+        onConfirmTopOff = {
+            viewModel.dismissDialog()
+            viewModel.topOff(machineId)
+        },
+        onBack = onBack,
+    )
 }
 
 @Composable
@@ -856,7 +935,7 @@ private fun PriceAndStartCard(
                     )
                 }
             }
-            if (state.canTopOff && state.isRunning) {
+            if (state.canAddDryingTime) {
                 Spacer(Modifier.height(10.dp))
                 OutlinedButton(
                     onClick = onTopOff,
@@ -1207,6 +1286,9 @@ private fun MachineDialogs(
     state: MachineUiState,
     onDismiss: () -> Unit,
     onAddCredit: () -> Unit,
+    onConfirmStart: () -> Unit,
+    onTopOffUnits: (Int) -> Unit,
+    onConfirmTopOff: () -> Unit,
     onBack: () -> Unit,
 ) {
     when (val dialog = state.dialog) {
@@ -1233,6 +1315,63 @@ private fun MachineDialogs(
             title = { Text("We didn't get confirmation") },
             text = { Text("We didn't get confirmation in time. Your payment may have already gone through, check the machine before trying again.") },
             confirmButton = { TextButton(onClick = onDismiss) { Text("OK") } },
+        )
+        is MachineDialog.ConfirmStart -> AlertDialog(
+            onDismissRequest = onDismiss,
+            title = { Text("Start this machine?") },
+            text = {
+                Column {
+                    val machine = state.machine
+                    Text("${machine?.displayName ?: "Machine"} \u00b7 ${state.roomName}".trim())
+                    state.selectedCycle?.let { cycle ->
+                        Text("Cycle: ${prettyCycleKey(cycle.description ?: cycle.name)}")
+                    }
+                    if (state.isDryerMachine && state.effectiveTimeSeconds > 0) {
+                        Text("Time: ${MachineViewModel.formatCycleTime(state.effectiveTimeSeconds)}")
+                    }
+                    Spacer(Modifier.height(6.dp))
+                    Text("Price: ${Money.fromMinorUnits(dialog.amountCents)}")
+                    Text(
+                        "From your balance: ${Money.fromMinorUnits(state.availableCents)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            },
+            confirmButton = { TextButton(onClick = onConfirmStart) { Text("Start") } },
+            dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        )
+        is MachineDialog.ConfirmTopOff -> AlertDialog(
+            onDismissRequest = onDismiss,
+            title = { Text("Add more drying time") },
+            text = {
+                Column {
+                    val addedSeconds = state.topOffSeconds * dialog.units
+                    val price = state.topOffCents * dialog.units
+                    Text("Add ${MachineViewModel.formatCycleTime(addedSeconds)} for ${Money.fromMinorUnits(price)}")
+                    Spacer(Modifier.height(8.dp))
+                    androidx.compose.material3.Slider(
+                        value = dialog.units.toFloat(),
+                        onValueChange = { onTopOffUnits(it.roundToInt()) },
+                        valueRange = 1f..state.topOffMaxUnits.toFloat(),
+                        steps = (state.topOffMaxUnits - 2).coerceAtLeast(0),
+                    )
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text(
+                            MachineViewModel.formatCycleTime(state.topOffSeconds),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Text(
+                            MachineViewModel.formatCycleTime(state.topOffSeconds * state.topOffMaxUnits),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = onConfirmTopOff) { Text("Add time") } },
+            dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
         )
         MachineDialog.NoAmountToCharge -> AlertDialog(
             onDismissRequest = onDismiss,

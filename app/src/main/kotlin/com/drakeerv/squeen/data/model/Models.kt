@@ -156,6 +156,7 @@ data class Machine(
     val topOffTime: Int = 0,
     val topOffVend: Int = 0,
     val canTopOff: Boolean = false,
+    val topOffFullyDisabled: Boolean = false,
     val roomId: String?,
     val organizationId: String?,
     val selectedCycleKey: String? = null,

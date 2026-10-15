@@ -183,6 +183,7 @@ fun JsonApiResource.toMachine(): Machine = Machine(
     topOffTime = rel("currentStatus")?.int("topOffTime") ?: 0,
     topOffVend = rel("currentStatus")?.int("topOffVend") ?: 0,
     canTopOff = rel("currentStatus")?.bool("canTopOff") ?: false,
+    topOffFullyDisabled = rel("currentStatus")?.bool("topoffFullyDisabled") ?: false,
     roomId = relId("room"),
     organizationId = relId("organization"),
     selectedCycleKey = rel("currentStatus")?.rel("selectedCycle")?.str("name"),

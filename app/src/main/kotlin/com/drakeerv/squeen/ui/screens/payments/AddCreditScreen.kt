@@ -159,6 +159,7 @@ fun AddCreditScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbar = LocalSnackbarHost.current
     var customAmount by remember { mutableStateOf("") }
+    var confirmVisible by remember { mutableStateOf(false) }
 
     LaunchedEffect(accountId) { viewModel.load(accountId) }
     LaunchedEffect(state.error) {
@@ -281,7 +282,7 @@ fun AddCreditScreen(
             }
 
             Button(
-                onClick = { viewModel.addCredit(accountId, geoBoundaryId) },
+                onClick = { confirmVisible = true },
                 enabled = !state.busy && state.amount > 0 && state.methods.isNotEmpty(),
                 modifier = Modifier
                     .fillMaxWidth()
@@ -296,6 +297,29 @@ fun AddCreditScreen(
 
             TextButton(onClick = onAutoRecharge) { Text("Set up auto recharge") }
         }
+    }
+
+    if (confirmVisible) {
+        val method = state.methods.firstOrNull { it.id == state.selectedMethodId }
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { confirmVisible = false },
+            title = { Text("Add funds?") },
+            text = {
+                Text(
+                    "Add $" + "%.2f".format(state.amount / 100.0) +
+                        (method?.let { " to your account with ${it.display}" } ?: " to your account") + ".",
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmVisible = false
+                    viewModel.addCredit(accountId, geoBoundaryId)
+                }) { Text("Add funds") }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmVisible = false }) { Text("Cancel") }
+            },
+        )
     }
 
     state.successAmountCents?.let { amount ->
