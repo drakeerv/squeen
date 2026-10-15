@@ -1,0 +1,27 @@
+# Gradle / build output
+.gradle/
+build/
+app/build/
+.kotlin/
+local.properties
+
+# Signing material
+keystore.properties
+*.jks
+*.keystore
+
+# IDE
+.idea/
+*.iml
+.vscode/
+captures/
+.DS_Store
+
+# Artifacts
+*.apk
+*.aab
+*.xapk
+*.apks
+
+# Logs
+*.log

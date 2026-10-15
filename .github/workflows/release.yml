@@ -1,0 +1,72 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version name (e.g. 1.0.0)"
+        required: true
+        default: "1.0.0"
+      version_code:
+        description: "Version code (integer, must increase)"
+        required: true
+        default: "1"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and publish release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Accept Android SDK licenses
+        run: yes | sdkmanager --licenses > /dev/null 2>&1 || true
+
+      - name: Configure signing (optional)
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        if: env.KEYSTORE_BASE64 != ''
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 -d > release-keystore.jks
+          cat > keystore.properties <<EOF
+          storeFile=release-keystore.jks
+          storePassword=$KEYSTORE_PASSWORD
+          keyAlias=$KEY_ALIAS
+          keyPassword=$KEY_PASSWORD
+          EOF
+
+      - name: Build release APK
+        run: >
+          ./gradlew :app:assembleRelease --stacktrace
+          -PversionName=${{ inputs.version }}
+          -PversionCode=${{ inputs.version_code }}
+
+      - name: Rename APK
+        run: |
+          mkdir -p release
+          cp app/build/outputs/apk/release/app-release.apk "release/squeens-${{ inputs.version }}.apk"
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ inputs.version }}
+          name: squeens v${{ inputs.version }}
+          files: release/squeens-${{ inputs.version }}.apk
+          generate_release_notes: true
+          body: |
+            squeens v${{ inputs.version }} (${{ inputs.version_code }})
+
+            Install with [Obtainium](https://github.com/ImranR98/Obtainium), add
+            `https://github.com/${{ github.repository }}` and updates arrive automatically.

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="brand_tomato">#E23003</color>
+    <color name="brand_dark_tomato">#6F210F</color>
+    <color name="brand_light">#F8A390</color>
+    <color name="window_background">#FAFAFA</color>
+    <color name="ic_launcher_background">#ED4B31</color>
+</resources>
