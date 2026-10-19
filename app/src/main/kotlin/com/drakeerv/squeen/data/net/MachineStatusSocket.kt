@@ -44,7 +44,12 @@ class MachineStatusSocket(
 
     sealed interface Event {
         data class MachineStatus(val update: MachineStatusUpdate) : Event
-        data class CommandResponse(val machineId: String, val status: String, val type: String?) : Event
+        data class CommandResponse(
+            val commandId: String?,
+            val machineId: String,
+            val status: String,
+            val type: String?,
+        ) : Event
         data class PaymentStatus(val sessionId: String, val status: String, val raw: JsonObject) : Event
         data class KioskSessionStatus(val sessionId: String, val status: String, val raw: JsonObject) : Event
         data class ServerError(val message: String) : Event
@@ -64,6 +69,10 @@ class MachineStatusSocket(
         val topOffTime: Int,
         val topOffVend: Int,
         val topOffDisabled: Boolean,
+        val selectedCycleId: String?,
+        val selectedCycleName: String?,
+        val selectedModifierId: String?,
+        val selectedModifierName: String?,
     )
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -252,6 +261,8 @@ class MachineStatusSocket(
         when (eventType) {
             "MACHINE_STATUS" -> {
                 val data = root["data"].safeObject() ?: return
+                val selectedCycle = data["selectedCycle"].safeObject()
+                val selectedModifier = data["selectedModifier"].safeObject()
                 emit(
                     Event.MachineStatus(
                         MachineStatusUpdate(
@@ -265,6 +276,10 @@ class MachineStatusSocket(
                             topOffTime = data["topOffTime"].primitiveContent()?.toIntOrNull() ?: 0,
                             topOffVend = data["topOffVend"].primitiveContent()?.toIntOrNull() ?: 0,
                             topOffDisabled = data["topoffFullyDisabled"].primitiveContent()?.toBooleanStrictOrNull() ?: false,
+                            selectedCycleId = selectedCycle?.get("id").primitiveContent(),
+                            selectedCycleName = selectedCycle?.get("name").primitiveContent(),
+                            selectedModifierId = selectedModifier?.get("id").primitiveContent(),
+                            selectedModifierName = selectedModifier?.get("name").primitiveContent(),
                         )
                     )
                 )
@@ -273,6 +288,7 @@ class MachineStatusSocket(
                 val data = root["data"].safeObject() ?: return
                 emit(
                     Event.CommandResponse(
+                        commandId = data["id"].primitiveContent(),
                         machineId = data["machineId"].primitiveContent().orEmpty(),
                         status = data["status"].primitiveContent().orEmpty(),
                         type = data["type"].primitiveContent(),

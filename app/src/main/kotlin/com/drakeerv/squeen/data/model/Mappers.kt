@@ -186,7 +186,12 @@ fun JsonApiResource.toMachine(): Machine = Machine(
     topOffFullyDisabled = rel("currentStatus")?.bool("topoffFullyDisabled") ?: false,
     roomId = relId("room"),
     organizationId = relId("organization"),
-    selectedCycleKey = rel("currentStatus")?.rel("selectedCycle")?.str("name"),
+    selectedCycleId = rel("currentStatus")?.relId("selectedCycle"),
+    selectedCycleKey = rel("currentStatus")?.obj("selectedCycle")?.get("name").primitiveContent()
+        ?: rel("currentStatus")?.rel("selectedCycle")?.str("name"),
+    selectedModifierId = rel("currentStatus")?.relId("selectedModifier"),
+    selectedModifierName = rel("currentStatus")?.obj("selectedModifier")?.get("name").primitiveContent()
+        ?: rel("currentStatus")?.rel("selectedModifier")?.str("name"),
 )
 
 fun JsonApiResource.toOrganizationInfo(): OrganizationInfo {

@@ -159,7 +159,10 @@ data class Machine(
     val topOffFullyDisabled: Boolean = false,
     val roomId: String?,
     val organizationId: String?,
+    val selectedCycleId: String? = null,
     val selectedCycleKey: String? = null,
+    val selectedModifierId: String? = null,
+    val selectedModifierName: String? = null,
 ) {
     val displayName: String get() = name.ifBlank { number }
 

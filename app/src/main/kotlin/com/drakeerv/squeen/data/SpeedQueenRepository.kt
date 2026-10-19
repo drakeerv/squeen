@@ -539,12 +539,21 @@ class SpeedQueenRepository(
             .require("This machine is not available right now.") { JsonApiDocument.of(it).resource()?.toMachineCycles() }
 
     suspend fun price(machineId: String, type: String, connectionToken: String?): ApiResult<MachineCommand> = call {
-        api.getPrice(machineId, PriceRequest(createdById = session.userId, type = type, connectionToken = connectionToken))
+        val userId = session.userId
+        api.getPrice(
+            machineId,
+            PriceRequest(
+                createdById = userId,
+                type = type,
+                connectionToken = connectionToken,
+                createdBy = userId.takeIf { it.isNotBlank() }?.let { IdRef(it) },
+            ),
+        )
     }.map { JsonApiDocument.of(it).resource()?.toMachineCommand() ?: MachineCommand(null, null, machineId, null, type) }
 
     suspend fun setCycles(machineId: String, cycle: String, modifier: String?, connectionToken: String?): ApiResult<MachineCommand> = call {
         api.setCycles(machineId, SetCyclesRequest(CycleParams(cycle = cycle, modifier = modifier), connectionToken))
-    }.map { JsonApiDocument.of(it).resource()?.toMachineCommand() ?: MachineCommand(null, null, machineId, null, "SET_CYCLES") }
+    }.map { JsonApiDocument.of(it).resource()?.toMachineCommand() ?: MachineCommand(null, null, machineId, null, "SET_SELECTION") }
 
     suspend fun remoteVend(
         machineId: String,
@@ -559,9 +568,11 @@ class SpeedQueenRepository(
             VendRequest(
                 vendAmount = vendAmount,
                 userAccountId = userAccountId,
-                isPromotionalCredit = isPromotionalCredit,
+                // The official client sends null unless the vend is explicitly promotional.
+                isPromotionalCredit = true.takeIf { isPromotionalCredit },
                 useRewardsCredit = useRewardsCredit,
                 connectionToken = connectionToken,
+                userAccount = IdRef(userAccountId),
             ),
         )
     }.map { JsonApiDocument.of(it).resource()?.toMachineCommand() ?: MachineCommand(null, null, machineId, null, "REMOTE_VEND") }
@@ -574,7 +585,13 @@ class SpeedQueenRepository(
     ): ApiResult<MachineCommand> = call {
         api.remoteTopoff(
             machineId,
-            VendRequest(vendAmount = vendAmount, userAccountId = userAccountId, connectionToken = connectionToken),
+            VendRequest(
+                vendAmount = vendAmount,
+                userAccountId = userAccountId,
+                useRewardsCredit = false,
+                connectionToken = connectionToken,
+                userAccount = IdRef(userAccountId),
+            ),
         )
     }.map { JsonApiDocument.of(it).resource()?.toMachineCommand() ?: MachineCommand(null, null, machineId, null, "REMOTE_TOPOFF") }
 

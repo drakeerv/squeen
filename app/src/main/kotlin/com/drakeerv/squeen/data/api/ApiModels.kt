@@ -126,6 +126,12 @@ data class VendRequest(
     val isPromotionalCredit: Boolean? = null,
     val useRewardsCredit: Boolean? = null,
     val connectionToken: String? = null,
+    /**
+     * JSON:API relationship expected by the vend and top-off endpoints. The server reads the
+     * account from here, [userAccountId] alone is not enough (verified against the official
+     * d66 DTO, which always serialises both).
+     */
+    val userAccount: IdRef? = null,
 )
 
 @Serializable
@@ -133,6 +139,7 @@ data class PriceRequest(
     val createdById: String? = null,
     val type: String? = null,
     val connectionToken: String? = null,
+    val createdBy: IdRef? = null,
 )
 
 @Serializable
